@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SASA Dashboard - Futuristic Edition</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- jsPDF CDN for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF-AutoTable CDN for generating tables directly in PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.14/jspdf.plugin.autotable.min.js"></script>
+    <!-- html2canvas CDN (not strictly needed for table PDF, but kept for potential future use) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark background for futuristic feel */
+            color: #e6edf3; /* Light text color */
+        }
+        /* Custom scrollbar for a sleek look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #161b22;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444c56;
+        }
+        .card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .gradient-text {
+            background: linear-gradient(45deg, #a855f7, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(90deg, #a855f7, #6366f1);
+            box-shadow: 0 6px 20px rgba(168, 85, 247, 0.6);
+            transform: translateY(-2px);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background-color: #1f242c;
+            color: #9ca3af;
+            cursor: pointer;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        tr:hover {
+            background-color: #1f242c;
+        }
+        .data-table-container {
+            /* Removed max-height and overflow-y to display full data */
+            border: 1px solid #30363d;
+            border-radius: 0.5rem;
+        }
+        input[type="text"], select {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            color: #e6edf3;
+        }
+        input[type="text"]:focus, select:focus {
+            border-color: #6366f1;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        Loading data...
+    </div>
+
+    <div id="dashboard-content" class="container mx-auto p-4 bg-gray-900 rounded-xl shadow-lg border border-gray-700">
+        <!-- Header Section -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-extrabold mb-2 gradient-text">SASA Participation Dashboard</h1>
+            <p class="text-lg text-gray-400">Real-time insights into department submissions and participation.</p>
+            <div id="datetimeDisplay" class="text-sm text-gray-500 mt-2"></div>
+        </header>
+
+        <!-- Key Metrics Section -->
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div class="card p-6 rounded-lg text-center">
+                <p class="text-sm text-gray-400">Total Users</p>
+                <p id="totalUsers" class="text-3xl font-bold text-blue-400 mt-2">0</p>
+            </div>
+            <div class="card p-6 rounded-lg text-center">
+                <p class="text-sm text-gray-400">Total Submitted</p>
+                <p id="totalSubmitted" class="text-3xl font-bold text-green-400 mt-2">0</p>
+            </div>
+            <div class="card p-6 rounded-lg text-center">
+                <p class="text-sm text-gray-400">Total Not Submitted</p>
+                <p id="totalNotSubmitted" class="text-3xl font-bold text-red-400 mt-2">0</p>
+            </div>
+            <div class="card p-6 rounded-lg text-center">
+                <p class="text-sm text-gray-400">Total Participants</p>
+                <p id="totalParticipants" class="text-3xl font-bold text-purple-400 mt-2">0</p>
+            </div>
+        </section>
+
+        <!-- Data Table Section -->
+        <section class="card p-6 rounded-lg mb-10">
+            <h2 class="text-xl font-semibold mb-4 text-gray-200">Department Data</h2>
+            <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                <input type="text" id="searchInput" placeholder="Search by Department Name..." class="flex-grow p-3 rounded-md focus:ring-2 focus:ring-blue-500">
+                <select id="filterSelect" class="p-3 rounded-md focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Departments</option>
+                    <!-- Options will be dynamically populated -->
+                </select>
+            </div>
+            <div class="data-table-container rounded-lg overflow-hidden">
+                <table id="dataTable" class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th data-sort="sno">SNO</th>
+                            <th data-sort="departmentName">Department Name</th>
+                            <th data-sort="noOfUsers">No of Users</th>
+                            <th data-sort="submitted">Submitted</th>
+                            <th data-sort="notSubmitted">Not Submitted</th>
+                            <th data-sort="noOfParticipants">No. of Participants</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Table rows will be dynamically populated -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Download PDF Button -->
+        <div class="text-center mt-8">
+            <button id="downloadPdfBtn" class="btn-primary text-white font-bold py-3 px-8 rounded-full text-lg">
+                Download Table as PDF
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // *** IMPORTANT: Replace this with your actual public Google Sheet CSV URL ***
+        // To get this URL:
+        // 1. Open your Google Sheet ("SASA").
+        // 2. Go to File > Share > Publish to web.
+        // 3. Select your sheet and choose "Comma-separated values (.csv)" as the format.
+        // 4. Click "Publish" and copy the provided URL.
+        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRYfliEltKq6vi-sdSDRDVGTLNZC574jMHIKzuiQMzSCeLS8MrMlkgTQVuY620hNQXFsxav4mF2U8TU/pub?output=csv';
+
+        let sheetData = []; // This will now store the fetched data
+        let currentSortColumn = null;
+        let currentSortDirection = 'asc'; // 'asc' or 'desc'
+
+        // Function to parse CSV text into an array of objects
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length === 0) return [];
+
+            const headers = lines[0].split(',').map(header => header.trim());
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(value => value.trim());
+                if (values.length !== headers.length) {
+                    console.warn(`Skipping row ${i + 1} due to mismatch in column count.`);
+                    continue;
+                }
+                const rowObject = {};
+                headers.forEach((header, index) => {
+                    let value = values[index];
+                    // Convert numeric fields to numbers
+                    if (['SNO', 'No of Users', 'Submitted', 'Not Submitted', 'No. of Participants'].includes(header)) {
+                        rowObject[header] = parseInt(value, 10) || 0; // Default to 0 if parsing fails
+                    } else {
+                        rowObject[header] = value;
+                    }
+                });
+                data.push(rowObject);
+            }
+            return data;
+        }
+
+        // Function to fetch data from Google Sheet CSV
+        async function fetchSheetData() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.remove('hidden'); // Show loading overlay
+
+            try {
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+                sheetData = parseCSV(csvText);
+                console.log('Data fetched and parsed:', sheetData); // For debugging
+                initializeDashboard(sheetData); // Initialize dashboard with fetched data
+            } catch (error) {
+                console.error('Error fetching or parsing Google Sheet data:', error);
+                // Display an error message to the user
+                const messageBox = document.createElement('div');
+                messageBox.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50';
+                messageBox.innerHTML = `
+                    <div class="bg-red-700 text-white p-6 rounded-lg shadow-xl flex flex-col items-center">
+                        <p class="text-xl mb-4">Error loading data!</p>
+                        <p class="text-sm">Please ensure the Google Sheet CSV URL is correct and publicly accessible.</p>
+                        <button id="closeMessageBox" class="mt-4 bg-white text-red-700 px-4 py-2 rounded-md font-bold">Close</button>
+                    </div>
+                `;
+                document.body.appendChild(messageBox);
+                document.getElementById('closeMessageBox').addEventListener('click', () => {
+                    messageBox.remove();
+                });
+            } finally {
+                loadingOverlay.classList.add('hidden'); // Hide loading overlay
+            }
+        }
+
+        // Function to initialize all dashboard components
+        function initializeDashboard(data) {
+            updateKeyMetrics(data);
+            renderTable(data);
+            populateFilterOptions(data); // Pass data to populate options
+            // renderCharts(data); // Charts removed
+        }
+
+        // Function to calculate and update key metrics
+        function updateKeyMetrics(data) {
+            const totalUsers = data.reduce((sum, row) => sum + row['No of Users'], 0);
+            const totalSubmitted = data.reduce((sum, row) => sum + row.Submitted, 0);
+            const totalNotSubmitted = data.reduce((sum, row) => sum + row['Not Submitted'], 0);
+            const totalParticipants = data.reduce((sum, row) => sum + row['No. of Participants'], 0);
+
+            document.getElementById('totalUsers').textContent = totalUsers;
+            document.getElementById('totalSubmitted').textContent = totalSubmitted;
+            document.getElementById('totalNotSubmitted').textContent = totalNotSubmitted;
+            document.getElementById('totalParticipants').textContent = totalParticipants;
+        }
+
+        // Function to render the data table
+        function renderTable(data) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-gray-300">${row.SNO}</td>
+                    <td class="text-blue-300 font-medium">${row['Department Name']}</td>
+                    <td class="text-yellow-300">${row['No of Users']}</td>
+                    <td class="text-green-300">${row.Submitted}</td>
+                    <td class="text-red-300">${row['Not Submitted']}</td>
+                    <td class="text-purple-300">${row['No. of Participants']}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Function to populate department filter options
+        function populateFilterOptions(data) {
+            const filterSelect = document.getElementById('filterSelect');
+            filterSelect.innerHTML = '<option value="">All Departments</option>'; // Clear and add default
+            const departments = [...new Set(data.map(row => row['Department Name']))].sort(); // Get unique departments and sort them
+            departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                filterSelect.appendChild(option);
+            });
+        }
+
+        // Chart instances are no longer needed
+        // let submissionChartInstance;
+        // let participationChartInstance;
+
+        // Function to render charts (removed as per request)
+        function renderCharts(data) {
+            // This function is now empty as charts are removed.
+            // Keeping it as a placeholder to avoid breaking previous calls,
+            // but it can be safely removed if no other part of the code relies on its existence.
+        }
+
+        // Function to filter and search data
+        function filterAndSearchData() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const selectedDepartment = document.getElementById('filterSelect').value;
+
+            let filteredData = sheetData.filter(row => {
+                const matchesSearch = row['Department Name'].toLowerCase().includes(searchTerm);
+                const matchesFilter = selectedDepartment === '' || row['Department Name'] === selectedDepartment;
+                return matchesSearch && matchesFilter;
+            });
+
+            // Re-render table and charts (charts are now a no-op) with filtered data
+            renderTable(filteredData);
+            updateKeyMetrics(filteredData);
+            renderCharts(filteredData);
+            return filteredData; // Return filtered data for PDF generation
+        }
+
+        // Function to sort the table
+        function sortTable(column) {
+            // Use the currently filtered data for sorting
+            let dataToSort = filterAndSearchData();
+
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'asc';
+            }
+
+            const sortedData = [...dataToSort].sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                // Handle string comparison for department name
+                if (column === 'Department Name') { // Use the actual header name
+                    return currentSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                // Handle numeric comparison for other columns
+                return currentSortDirection === 'asc' ? valA - valB : valB - valA;
+            });
+
+            // Re-render table with sorted data
+            renderTable(sortedData);
+        }
+
+        // Function to update date and time display
+        function updateDateTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            document.getElementById('datetimeDisplay').textContent = now.toLocaleDateString('en-US', options);
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initial call to display date and time
+            updateDateTime();
+            // Update date and time every second
+            setInterval(updateDateTime, 1000);
+
+            // Fetch data when the DOM is loaded
+            fetchSheetData();
+
+            // Search and Filter event listeners
+            document.getElementById('searchInput').addEventListener('input', filterAndSearchData);
+            document.getElementById('filterSelect').addEventListener('change', filterAndSearchData);
+
+            // Sort event listeners for table headers
+            document.querySelectorAll('#dataTable th').forEach(header => {
+                header.addEventListener('click', () => {
+                    const sortKey = header.getAttribute('data-sort');
+                    // Map display names to internal data keys for sorting
+                    const columnMap = {
+                        'sno': 'SNO',
+                        'departmentName': 'Department Name',
+                        'noOfUsers': 'No of Users',
+                        'submitted': 'Submitted',
+                        'notSubmitted': 'Not Submitted',
+                        'noOfParticipants': 'No. of Participants'
+                    };
+                    sortTable(columnMap[sortKey]);
+                });
+            });
+
+            // PDF Download functionality
+            document.getElementById('downloadPdfBtn').addEventListener('click', async () => {
+                const { jsPDF } = window.jspdf;
+
+                // Show a loading indicator
+                document.getElementById('downloadPdfBtn').textContent = 'Generating PDF...';
+                document.getElementById('downloadPdfBtn').disabled = true;
+
+                try {
+                    const doc = new jsPDF('p', 'pt', 'a4'); // 'p' for portrait, 'pt' for points, 'a4' size
+
+                    // Get the currently displayed (filtered and sorted) data
+                    const currentTableData = filterAndSearchData();
+
+                    // Calculate key statistics from the currentTableData
+                    const totalUsersPdf = currentTableData.reduce((sum, row) => sum + row['No of Users'], 0);
+                    const totalSubmittedPdf = currentTableData.reduce((sum, row) => sum + row.Submitted, 0);
+                    const totalNotSubmittedPdf = currentTableData.reduce((sum, row) => sum + row['Not Submitted'], 0);
+                    const totalParticipantsPdf = currentTableData.reduce((sum, row) => sum + row['No. of Participants'], 0);
+
+                    // Find top 10 highest "Not Submitted" departments
+                    const top10NotSubmitted = [...currentTableData] // Create a copy to sort
+                        .sort((a, b) => b['Not Submitted'] - a['Not Submitted']) // Sort descending
+                        .slice(0, 10); // Take top 10
+
+
+                    // Prepare headers for main data autoTable
+                    const mainTableHeaders = [
+                        { header: 'SNO', dataKey: 'SNO' },
+                        { header: 'Department Name', dataKey: 'Department Name' },
+                        { header: 'No of Users', dataKey: 'No of Users' },
+                        { header: 'Submitted', dataKey: 'Submitted' },
+                        { header: 'Not Submitted', dataKey: 'Not Submitted' },
+                        { header: 'No. of Participants', dataKey: 'No. of Participants' }
+                    ];
+
+                    // Prepare body for main data autoTable
+                    const mainTableBody = currentTableData.map(row => [
+                        row.SNO,
+                        row['Department Name'],
+                        row['No of Users'],
+                        row.Submitted,
+                        row['Not Submitted'],
+                        row['No. of Participants']
+                    ]);
+
+                    // Add a title and date/time to the PDF header
+                    const now = new Date();
+                    const dateTimeOptions = {
+                        year: 'numeric', month: 'long', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false // Use 24-hour format for filename
+                    };
+                    const formattedDateTimeForHeader = now.toLocaleDateString('en-US', dateTimeOptions);
+
+                    // For filename, use a format without special characters
+                    const filenameDateTime = now.getFullYear() +
+                                             String(now.getMonth() + 1).padStart(2, '0') +
+                                             String(now.getDate()).padStart(2, '0') + '_' +
+                                             String(now.getHours()).padStart(2, '0') +
+                                             String(now.getMinutes()).padStart(2, '0') +
+                                             String(now.getSeconds()).padStart(2, '0');
+
+                    let yPos = 40; // Initial Y position for content
+
+                    doc.setFontSize(18);
+                    doc.text("West Godavari SASA App Department wise Report", 40, yPos); // Updated report name
+                    yPos += 20;
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 100); // Grey color for date/time
+                    doc.text(`Report Generated: ${formattedDateTimeForHeader}`, 40, yPos);
+                    yPos += 20;
+
+                    // Add statistics to PDF header - arranged in two rows for better visibility
+                    doc.setFontSize(12);
+                    doc.setTextColor(0, 0, 0); // Black color for stats
+
+                    // Row 1 of statistics
+                    doc.text(`Total Users: ${totalUsersPdf}`, 40, yPos);
+                    doc.text(`Total Submitted: ${totalSubmittedPdf}`, 250, yPos);
+                    yPos += 15; // Move down for the next row
+
+                    // Row 2 of statistics
+                    doc.text(`Total Not Submitted: ${totalNotSubmittedPdf}`, 40, yPos);
+                    doc.text(`Total Participants: ${totalParticipantsPdf}`, 250, yPos);
+                    yPos += 25; // Extra space before abstract
+
+                    // Add Top 10 Highest Not Submitted Departments as a small table
+                    doc.setFontSize(14);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text("Top 10 Highest 'Not Submitted' Departments", 40, yPos);
+                    yPos += 15;
+
+                    const top10TableHeaders = [
+                        { header: 'Rank', dataKey: 'rank' },
+                        { header: 'Department', dataKey: 'department' },
+                        { header: 'Users', dataKey: 'users' },
+                        { header: 'Submitted', dataKey: 'submitted' },
+                        { header: 'Not Submitted', dataKey: 'notSubmitted' }
+                    ];
+
+                    const top10TableBody = top10NotSubmitted.map((dept, index) => [
+                        index + 1,
+                        dept['Department Name'],
+                        dept['No of Users'],
+                        dept.Submitted,
+                        dept['Not Submitted']
+                    ]);
+
+                    doc.autoTable({
+                        head: [top10TableHeaders.map(h => h.header)],
+                        body: top10TableBody,
+                        startY: yPos,
+                        theme: 'grid',
+                        styles: {
+                            fontSize: 8, // Smaller font for this abstract table
+                            cellPadding: 4, // Less padding
+                            textColor: '#333333',
+                            lineColor: [200, 200, 200], // Lighter lines
+                            lineWidth: 0.1
+                        },
+                        headStyles: {
+                            fillColor: '#ef4444', // Reddish background for this specific header
+                            textColor: '#ffffff',
+                            fontStyle: 'bold',
+                            halign: 'center'
+                        },
+                        bodyStyles: {
+                            fillColor: '#ffffff',
+                        },
+                        alternateRowStyles: {
+                            fillColor: '#fef2f2', // Very light red for alternate rows
+                        },
+                        columnStyles: {
+                            0: { halign: 'center', cellWidth: 40 }, // Rank
+                            1: { cellWidth: 180 }, // Department Name - Increased width
+                            2: { halign: 'right', cellWidth: 60 }, // Users
+                            3: { halign: 'right', cellWidth: 60 }, // Submitted
+                            4: { halign: 'right', cellWidth: 80 } // Not Submitted
+                        },
+                        didParseCell: function (data) {
+                            // Highlight the 'Not Submitted' column in this small table too
+                            if (data.section === 'body') {
+                                if (data.column.dataKey === 'notSubmitted') {
+                                    data.cell.styles.textColor = '#dc2626'; // Darker red text
+                                } else if (data.column.dataKey === 'users') {
+                                    data.cell.styles.textColor = '#d97706'; // Amber/Orange
+                                } else if (data.column.dataKey === 'submitted') {
+                                    data.cell.styles.textColor = '#10b981'; // Emerald Green
+                                }
+                            }
+                        }
+                    });
+
+                    yPos = doc.autoTable.previous.finalY + 20; // Update yPos to start main table below this one
+
+                    // Generate main data table using autoTable
+                    doc.autoTable({
+                        head: [mainTableHeaders.map(h => h.header)],
+                        body: mainTableBody,
+                        startY: yPos, // Start main table below the title, date/time, statistics, and abstract table
+                        theme: 'grid', // 'striped', 'grid', 'plain'
+                        styles: {
+                            font: 'Inter', // Use Inter font if available in jsPDF or a fallback
+                            fontSize: 8, // Smaller font size for the main table
+                            cellPadding: 6, // Adjusted padding for smaller font
+                            halign: 'left',
+                            valign: 'middle',
+                            textColor: '#333333', // Dark text for readability
+                            lineColor: [230, 230, 230], // Very light grey lines for dotted effect
+                            lineWidth: 0.1 // Very thin lines
+                        },
+                        headStyles: {
+                            fillColor: '#6366f1', // Indigo for header background
+                            textColor: '#ffffff', // White text for header
+                            fontStyle: 'bold',
+                            halign: 'center'
+                        },
+                        bodyStyles: {
+                            fillColor: '#ffffff', // White background for body cells
+                        },
+                        alternateRowStyles: {
+                            fillColor: '#f0f4f8', // Very light blue-grey for alternate rows
+                        },
+                        columnStyles: {
+                            0: { halign: 'center' }, // SNO column center aligned
+                            2: { halign: 'right' }, // Numeric columns right aligned
+                            3: { halign: 'right' },
+                            4: { halign: 'right' },
+                            5: { halign: 'right' }
+                        },
+                        // Custom cell rendering to apply colors based on data
+                        didParseCell: function (data) {
+                            if (data.section === 'body') {
+                                // Highlight 'Not Submitted' column with a distinct background color
+                                if (data.column.dataKey === 'Not Submitted') {
+                                    data.cell.styles.fillColor = '#fee2e2'; // Light red background
+                                    data.cell.styles.textColor = '#dc2626'; // Darker red text
+                                }
+                                // Apply specific text colors to other numeric columns
+                                if (data.column.dataKey === 'No of Users') {
+                                    data.cell.styles.textColor = '#d97706'; // Amber/Orange
+                                } else if (data.column.dataKey === 'Submitted') {
+                                    data.cell.styles.textColor = '#10b981'; // Emerald Green
+                                } else if (data.column.dataKey === 'No. of Participants') {
+                                    data.cell.styles.textColor = '#a855f7'; // Purple
+                                } else if (data.column.dataKey === 'Department Name') {
+                                    data.cell.styles.textColor = '#3b82f6'; // Blue
+                                }
+                            }
+                        },
+                        didDrawPage: function (data) {
+                            // Footer for page numbers
+                            let str = "Page " + doc.internal.getNumberOfPages();
+                            doc.setFontSize(10);
+                            doc.setTextColor(100, 100, 100); // Grey color for footer
+                            doc.text(str, data.settings.margin.left, doc.internal.pageSize.height - 30);
+                        }
+                    });
+
+                    // Save the PDF with a dynamic filename including date and time
+                    doc.save(`SASA_Table_Data_${filenameDateTime}.pdf`);
+
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    // Provide user feedback
+                    const messageBox = document.createElement('div');
+                    messageBox.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50';
+                    messageBox.innerHTML = `
+                        <div class="bg-red-700 text-white p-6 rounded-lg shadow-xl flex flex-col items-center">
+                            <p class="text-xl mb-4">Error generating PDF!</p>
+                            <p class="text-sm">Please try again. If the issue persists, contact support.</p>
+                            <button id="closeMessageBox" class="mt-4 bg-white text-red-700 px-4 py-2 rounded-md font-bold">Close</button>
+                        </div>
+                    `;
+                    document.body.appendChild(messageBox);
+                    document.getElementById('closeMessageBox').addEventListener('click', () => {
+                        messageBox.remove();
+                    });
+                } finally {
+                    // Restore button state
+                    document.getElementById('downloadPdfBtn').textContent = 'Download Table as PDF';
+                    document.getElementById('downloadPdfBtn').disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
